@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP REST API Search Permalink
  * Plugin URI:  https://github.com/edouardkombo/wp-rest-api-search-permalink
- * Description: Extends Wp Rest APi and allows you to search for pages and posts by link.
+ * Description: Extends Wp Rest APi and allows you to search for pages and posts by link, and filter the result per fields
  *
  * Version:     1.3.0
  *

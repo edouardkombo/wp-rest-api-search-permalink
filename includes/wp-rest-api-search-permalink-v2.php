@@ -408,104 +408,243 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
             $GLOBALS[ 'post' ] = $post;
             setup_postdata ( $post );
 
+            //If fields filtering is enabled, get all the fields requested
+            $allFields  = (isset($request->get_params()['fields'])) ? $request->get_params()['fields'] : null;
+            $_fields    = (!is_null($allFields)) ? explode(',', $allFields) : null;
+
+            //Inverse the array keys
+            $fields     = (!is_null($_fields)) ? array_flip($_fields) : null;
+
             $this->post_type = $post->post_type;
 
-            // Base fields for every post.
-            $data = array (
-                'id'           => $post->ID,
-                'date'         => $this->prepare_date_response ( $post->post_date_gmt, $post->post_date ),
-                'date_gmt'     => $this->prepare_date_response ( $post->post_date_gmt ),
-                'guid'         => array (
-                    /** This filter is documented in wp-includes/post-template.php */
-                    'rendered' => apply_filters ( 'get_the_guid', $post->guid ),
-                    'raw'      => $post->guid,
-                ),
-                'modified'     => $this->prepare_date_response ( $post->post_modified_gmt, $post->post_modified ),
-                'modified_gmt' => $this->prepare_date_response ( $post->post_modified_gmt ),
-                'password'     => $post->post_password,
-                'slug'         => $post->post_name,
-                'status'       => $post->post_status,
-                'type'         => $post->post_type,
-                'link'         => get_permalink ( $post->ID ),
-            );
+            //If filtering by fields is enabled, we allow to show on the screen only specified fields
+            if (!is_null($fields) && (count($fields) > 0)) {
+                $data = [];
 
-            $schema = $this->get_item_schema ();
+                if (isset($fields['id'])) {
+                    $data['id']         = $post->ID;
+                }
+                if (isset($fields['date'])) {
+                    $data['date']       = $this->prepare_date_response ( $post->post_date_gmt, $post->post_date );
+                }
+                if (isset($fields['date_gmt'])) {
+                    $data['date_gmt']   = $this->prepare_date_response ( $post->post_date_gmt );
+                }
+                if (isset($fields['guid'])) {
+                    $data['guid']       = array (
+                        /** This filter is documented in wp-includes/post-template.php */
+                        'rendered' => apply_filters ( 'get_the_guid', $post->guid ),
+                        'raw'      => $post->guid,
+                    );
+                }
+                if (isset($fields['modified'])) {
+                    $data['modified']       = $this->prepare_date_response ( $post->post_modified_gmt, $post->post_modified );
+                }
+                if (isset($fields['modified_gmt'])) {
+                    $data['modified_gmt']   = $this->prepare_date_response ( $post->post_modified_gmt );
+                }
+                if (isset($fields['password'])) {
+                    $data['password']       = $post->post_password;
+                }
+                if (isset($fields['slug'])) {
+                    $data['slug']           = $post->post_name;
+                }
+                if (isset($fields['status'])) {
+                    $data['status']         = $post->post_status;
+                }
+                if (isset($fields['type'])) {
+                    $data['type']           = $post->post_type;
+                }
+                if (isset($fields['link'])) {
+                    $data['link']           = get_permalink ( $post->ID );
+                }
 
-            if ( ! empty( $schema[ 'properties' ][ 'title' ] ) ) {
-                $data[ 'title' ] = array (
-                    'raw'      => $post->post_title,
-                    'rendered' => get_the_title ( $post->ID ),
+                $schema = $this->get_item_schema();
+
+                if ( ! empty( $schema[ 'properties' ][ 'title' ] ) && (isset($fields['title'])) ) {
+                    $data[ 'title' ] = array (
+                        'raw'      => $post->post_title,
+                        'rendered' => get_the_title ( $post->ID ),
+                    );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'content' ] ) && (isset($fields['content'])) ) {
+
+                    if ( ! empty( $post->post_password ) ) {
+                        $this->prepare_password_response ( $post->post_password );
+                    }
+
+                    $data[ 'content' ] = array (
+                        'raw'      => $post->post_content,
+                        /** This filter is documented in wp-includes/post-template.php */
+                        'rendered' => apply_filters ( 'the_content', $post->post_content ),
+                    );
+
+                    // Don't leave our cookie lying around: https://github.com/WP-API/WP-API/issues/1055.
+                    if ( ! empty( $post->post_password ) ) {
+                        $_COOKIE[ 'wp-postpass_' . COOKIEHASH ] = '';
+                    }
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'excerpt' ] ) && (isset($fields['excerpt']))) {
+                    $data[ 'excerpt' ] = array (
+                        'raw'      => $post->post_excerpt,
+                        'rendered' => $this->prepare_excerpt_response ( $post->post_excerpt ),
+                    );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'author' ] ) && (isset($fields['author']))) {
+                    $data[ 'author' ] = (int) $post->post_author;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'featured_image' ] ) && (isset($fields['featured_image']))) {
+                    $data[ 'featured_image' ] = (int) get_post_thumbnail_id ( $post->ID );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'parent' ] ) && (isset($fields['parent']))) {
+                    $data[ 'parent' ] = (int) $post->post_parent;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'menu_order' ] ) && (isset($fields['menu_order']))) {
+                    $data[ 'menu_order' ] = (int) $post->menu_order;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'comment_status' ] ) && (isset($fields['comment_status']))) {
+                    $data[ 'comment_status' ] = $post->comment_status;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'ping_status' ] ) && (isset($fields['ping_status']))) {
+                    $data[ 'ping_status' ] = $post->ping_status;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'sticky' ] ) && (isset($fields['sticky']))) {
+                    $data[ 'sticky' ] = is_sticky ( $post->ID );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'template' ] ) && (isset($fields['template']))) {
+                    if ( $template = get_page_template_slug ( $post->ID ) ) {
+                        $data[ 'template' ] = $template;
+                    } else {
+                        $data[ 'template' ] = '';
+                    }
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'format' ] ) && (isset($fields['format']))) {
+                    $data[ 'format' ] = get_post_format ( $post->ID );
+                    // Fill in blank post format.
+                    if ( empty( $data[ 'format' ] ) ) {
+                        $data[ 'format' ] = 'standard';
+                    }
+                }
+
+            } else {
+
+                // Base fields for every post.
+                $data = array(
+                    'id'         => $post->ID,
+                    'date'       => $this->prepare_date_response ( $post->post_date_gmt, $post->post_date ),
+                    'date_gmt'   => $this->prepare_date_response ( $post->post_date_gmt ),
+                    'guid'       => array (
+                        /** This filter is documented in wp-includes/post-template.php */
+                        'rendered' => apply_filters ( 'get_the_guid', $post->guid ),
+                        'raw'      => $post->guid,
+                    ),
+                    'modified'       => $this->prepare_date_response ( $post->post_modified_gmt, $post->post_modified ),
+                    'modified_gmt'   => $this->prepare_date_response ( $post->post_modified_gmt ),
+                    'password'       => $post->post_password,
+                    'slug'           => $post->post_name,
+                    'status'         => $post->post_status,
+                    'type'           => $post->post_type,
+                    'link'           => get_permalink ( $post->ID )
                 );
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'content' ] ) ) {
+                $schema = $this->get_item_schema();
 
-                if ( ! empty( $post->post_password ) ) {
-                    $this->prepare_password_response ( $post->post_password );
+                if ( ! empty( $schema[ 'properties' ][ 'title' ] ) ) {
+                    $data[ 'title' ] = array (
+                        'raw'      => $post->post_title,
+                        'rendered' => get_the_title ( $post->ID ),
+                    );
                 }
 
-                $data[ 'content' ] = array (
-                    'raw'      => $post->post_content,
-                    /** This filter is documented in wp-includes/post-template.php */
-                    'rendered' => apply_filters ( 'the_content', $post->post_content ),
-                );
+                if ( ! empty( $schema[ 'properties' ][ 'content' ] ) ) {
 
-                // Don't leave our cookie lying around: https://github.com/WP-API/WP-API/issues/1055.
-                if ( ! empty( $post->post_password ) ) {
-                    $_COOKIE[ 'wp-postpass_' . COOKIEHASH ] = '';
+                    if ( ! empty( $post->post_password ) ) {
+                        $this->prepare_password_response ( $post->post_password );
+                    }
+
+                    $data[ 'content' ] = array (
+                        'raw'      => $post->post_content,
+                        /** This filter is documented in wp-includes/post-template.php */
+                        'rendered' => apply_filters ( 'the_content', $post->post_content ),
+                    );
+
+                    // Don't leave our cookie lying around: https://github.com/WP-API/WP-API/issues/1055.
+                    if ( ! empty( $post->post_password ) ) {
+                        $_COOKIE[ 'wp-postpass_' . COOKIEHASH ] = '';
+                    }
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'excerpt' ] ) ) {
+                    $data[ 'excerpt' ] = array (
+                        'raw'      => $post->post_excerpt,
+                        'rendered' => $this->prepare_excerpt_response ( $post->post_excerpt ),
+                    );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'author' ] ) ) {
+                    $data[ 'author' ] = (int) $post->post_author;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'featured_image' ] ) ) {
+                    $data[ 'featured_image' ] = (int) get_post_thumbnail_id ( $post->ID );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'parent' ] ) ) {
+                    $data[ 'parent' ] = (int) $post->post_parent;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'menu_order' ] ) ) {
+                    $data[ 'menu_order' ] = (int) $post->menu_order;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'comment_status' ] ) ) {
+                    $data[ 'comment_status' ] = $post->comment_status;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'ping_status' ] ) ) {
+                    $data[ 'ping_status' ] = $post->ping_status;
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'sticky' ] ) ) {
+                    $data[ 'sticky' ] = is_sticky ( $post->ID );
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'template' ] ) ) {
+                    if ( $template = get_page_template_slug ( $post->ID ) ) {
+                        $data[ 'template' ] = $template;
+                    } else {
+                        $data[ 'template' ] = '';
+                    }
+                }
+
+                if ( ! empty( $schema[ 'properties' ][ 'format' ] ) ) {
+                    $data[ 'format' ] = get_post_format ( $post->ID );
+                    // Fill in blank post format.
+                    if ( empty( $data[ 'format' ] ) ) {
+                        $data[ 'format' ] = 'standard';
+                    }
                 }
             }
 
-            if ( ! empty( $schema[ 'properties' ][ 'excerpt' ] ) ) {
-                $data[ 'excerpt' ] = array (
-                    'raw'      => $post->post_excerpt,
-                    'rendered' => $this->prepare_excerpt_response ( $post->post_excerpt ),
-                );
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'author' ] ) ) {
-                $data[ 'author' ] = (int) $post->post_author;
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'featured_image' ] ) ) {
-                $data[ 'featured_image' ] = (int) get_post_thumbnail_id ( $post->ID );
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'parent' ] ) ) {
-                $data[ 'parent' ] = (int) $post->post_parent;
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'menu_order' ] ) ) {
-                $data[ 'menu_order' ] = (int) $post->menu_order;
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'comment_status' ] ) ) {
-                $data[ 'comment_status' ] = $post->comment_status;
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'ping_status' ] ) ) {
-                $data[ 'ping_status' ] = $post->ping_status;
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'sticky' ] ) ) {
-                $data[ 'sticky' ] = is_sticky ( $post->ID );
-            }
 
-            if ( ! empty( $schema[ 'properties' ][ 'template' ] ) ) {
-                if ( $template = get_page_template_slug ( $post->ID ) ) {
-                    $data[ 'template' ] = $template;
-                } else {
-                    $data[ 'template' ] = '';
-                }
-            }
-
-            if ( ! empty( $schema[ 'properties' ][ 'format' ] ) ) {
-                $data[ 'format' ] = get_post_format ( $post->ID );
-                // Fill in blank post format.
-                if ( empty( $data[ 'format' ] ) ) {
-                    $data[ 'format' ] = 'standard';
-                }
-            }
 
             $context = ! empty( $request[ 'context' ] ) ? $request[ 'context' ] : 'view';
             $data    = $this->filter_response_by_context ( $data, $context );
@@ -558,17 +697,39 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
             $pattern = (is_array($patterns)) ? max($patterns) : $patterns;
 
             //Request in WP database for Posts or pages at the same time
-            $posts_query = new WP_Query( array(
-                'post_type' => array('any'),
-                'name' => $pattern
-            ) );
+            if ($pattern === "*") {
+                $posts_query = new WP_Query( array(
+                    'post_type' => array('any')
+                ) );
+            } else {
+                $posts_query = new WP_Query( array(
+                    'post_type' => array('any'),
+                    'name' => $pattern
+                ) );
+            }
 
             //If something is found
             if ( $posts_query->have_posts() ) {
-                $post   = $posts_query->posts[0];
 
-                $itemdata = $this->prepare_item_for_response ( $post, $request );
-                $data[]   = $this->prepare_response_for_collection ( $itemdata );
+                $data = [];
+
+                //If we're requesting all the pages, loop inside
+                if (count($posts_query->posts) > 1) {
+
+                    foreach ($posts_query->posts as $key => $post) {
+
+                        $itemdata = $this->prepare_item_for_response ( $post, $request );
+                        $data[]   = $this->prepare_response_for_collection ( $itemdata );
+                    }
+
+
+                } else {
+                    $post   = $posts_query->posts[0];
+
+                    $itemdata = $this->prepare_item_for_response ( $post, $request );
+                    $data[]   = $this->prepare_response_for_collection ( $itemdata );
+                }
+
 
                 return new WP_REST_Response( $data, 200 );
 
