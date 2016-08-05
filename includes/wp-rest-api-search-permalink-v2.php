@@ -47,30 +47,6 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
 	    }
 
 
-        /**
-         * Register routes for WP API v2.
-         *
-         * Get post or page by requesting link
-         *
-         * @since  1.2.0
-         * @return array
-         */
-        public function register_routes() {
-
-            register_rest_route( self::get_plugin_namespace(), '/(?P<pattern>(.*?))', array(
-                array(
-                    'methods'  => WP_REST_Server::READABLE,
-                    'callback' => array( $this, 'get_post_or_page' ),
-                    'args'     => array(
-                        'context' => array(
-                            'default' => 'view',
-                        ),
-                    ),
-                )
-            ) );
-        }
-
-
         public function get_post_type_base ( $post_type )
         {
 
@@ -637,15 +613,6 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
                 }
             }
 
-
-
-
-
-
-
-
-
-
             $context = ! empty( $request[ 'context' ] ) ? $request[ 'context' ] : 'view';
             $data    = $this->filter_response_by_context ( $data, $context );
 
@@ -671,6 +638,29 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
 
         }
 
+        /**
+         * Register routes for WP API v2.
+         *
+         * Get post or page by requesting link
+         *
+         * @since  1.2.0
+         * @return array
+         */
+        public function register_routes() {
+
+            register_rest_route( self::get_plugin_namespace(), '/(?P<pattern>(.*?))', array(
+                array(
+                    'methods'  => WP_REST_Server::READABLE,
+                    'callback' => array( $this, 'get_post_or_page' ),
+                    'args'     => array(
+                        'context' => array(
+                            'default' => 'view',
+                        ),
+                    ),
+                )
+            ) );
+        }
+
 
         /**
          * Get post or page by link.
@@ -694,7 +684,7 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
             $patterns = (strpos($requestedPattern, '/')) ? explode('/', $requestedPattern) : $requestedPattern;
 
             //If patterns is an array, we take the last value as the database pattern
-            $pattern = (is_array($patterns)) ? max($patterns) : $patterns;
+            $pattern = (is_array($patterns)) ? end($patterns) : $patterns;
 
             //Request in WP database for Posts or pages at the same time
             if ($pattern === "*") {
@@ -702,10 +692,20 @@ if ( ! class_exists( 'WP_REST_Api_Search_Permalink' ) ) :
                     'post_type' => array('any')
                 ) );
             } else {
-                $posts_query = new WP_Query( array(
-                    'post_type' => array('any'),
-                    'name' => $pattern
-                ) );
+                //If last pattern is a numeric value, search for ids instead of slugs
+                if (is_numeric($pattern)) {
+                    $posts_query = new WP_Query( array(
+                        'post_type' => array('any'),
+                        'p' => $pattern
+                    ) );
+
+                } else {
+                    $posts_query = new WP_Query( array(
+                        'post_type' => array('any'),
+                        'name' => $pattern
+                    ) );
+                }
+
             }
 
             //If something is found
